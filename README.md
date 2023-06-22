@@ -114,26 +114,9 @@ OK: BAR matches Envy value foo
 
 Envy requires `jq` and `yq` under the hood. The default versions are bundled in the `bin` folder. They can be overridden using the configuration options listed above.
 
-#### Envy yaml file
+#### Keeping the `names` list in sync
 
-If `envy.yaml` doesn't exist, running any command or just invoking the `envy` script will create an empty yaml file. If you want to create it manually, it needs this at the very minimum:
-
-```yaml
-names:
-```
-
-and here is something more to get started with:
-
-```yaml
-names:
-  - hello.demo
-hello:
-  demo:
-    FOO: bar
-    BAR: foo
-```
-
-:warning: The list of `names` must contain all paths of keys found in the file that you want to use.
+The list of `names` must contain all paths of keys found in the file that you want to use.
 
 Example:
 
@@ -151,7 +134,13 @@ other:
     SOMETHING: else
 ```
 
-You won't see or be able to use `other.envs` with the `envy` commands because the key does not exist in the list of `names`.
+You won't see or be able to use `other.envs` with the `envy` commands because the key does not exist in the list of `names`. It should be:
+
+```yaml
+names:
+  - hello.demo
+  - other.envs
+```
 
 Using envy's commands such as `envy set`, `envy import-dotenv` or `envy import-bash` will update `names` accordingly. If you modify the yaml file manually, you'll have to keep `names` in sync yourself.
 
@@ -159,16 +148,28 @@ Using envy's commands such as `envy set`, `envy import-dotenv` or `envy import-b
 
 ## Re-use sections with references
 
+- Use `&variable-name` to name something.
+- Use `*variable-name` to reference something.
+- Combine several references by using a list:
+
+```yaml
+something:
+  <<:
+    - *first-var
+    - *second-var
 ```
+
+Full references example:
+
+```yaml
 projects:
   myapp:
     defaults: &myapp-defaults
-      HOST_NAME &myapp-host http://foo.com
+      HOST_NAME: &myapp-host http://foo.com
       LOG_LEVEL: info
       LOG_FORMAT: json
     dev:
-      <<:
-        - *myapp-defaults
+      <<: *myapp-defaults
     test:
       <<:
         - *myapp-defaults
@@ -177,4 +178,28 @@ projects:
       <<:
         - *myapp-defaults
       BASE_URL: *myapp-host
+```
+
+Produces the computed yaml:
+
+```yaml
+projects:
+  myapp:
+    defaults:
+      HOST_NAME: http://foo.com
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+    dev:
+      HOST_NAME: http://foo.com
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+    test:
+      HOST_NAME: http://foo.com
+      LOG_FORMAT: json
+      LOG_LEVEL: error
+    prod:
+      HOST_NAME: http://foo.com
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+      BASE_URL: http://foo.com
 ```
