@@ -1,0 +1,6 @@
+names:
+  - hello.demo
+hello:
+  demo:
+    FOO: bar
+    BAR: foo
