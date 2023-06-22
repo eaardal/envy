@@ -1,0 +1,481 @@
+#!/bin/bash
+
+print_help() {
+  echo ""
+  echo "Usage:"
+  echo ""
+  echo -e "source envy export <env> - Export the given environment variables. Remember to source the statement for the changes to stick to the session."
+  echo -e "source envy unexport <env> - Unset the given environment variables. Remember to source the statement for the changes to stick to the session."
+  echo -e "envy ls|list - List available environments names. These can be used in commands with <env> as a parameter."
+  echo -e "envy show <env> - Print environment variables in the given environment (won't set them)."
+  echo -e "envy set <env> <key> <value> - Set the environment value key and value at the given path in the yaml. Path can be dot-separated."
+  echo -e "envy yaml - Print the entire Envy yaml file containing all environment variables."
+  echo -e "envy verify <env> - Verifies that each environment variable key found in Envy for the given <env> is set in the current shell and that the shell's values matches the ones in Envy."
+  echo -e "envy export-dotenv <env> <out-file-path> - Export environment variables to the given file path in a dotenv (.env) format: 'key=value'."
+  echo -e "envy export-bash <env> <out-file-path> - Export environment variables to the given file path in a bash (.sh) format: 'export key=value'."
+  echo -e "envy import-dotenv <dotenv-file-path> <env> - Import a .env file and save all environment variables into envy.yaml."
+  echo -e "envy import-bash - Not implemented"
+}
+
+if [ -z "$1" ]; then
+  echo "No command provided, here's the help command instead:"
+  print_help
+  exit 0
+fi
+
+# ENVY_DIR must be set before running
+if [ -z "$ENVY_DIR" ]; then
+  echo "Environment variable ENVY_DIR is not set. It should be set to the directory where envy.yaml (or ENVY_FILE) is stored."
+  print_help
+  exit 1
+fi
+
+# If ENVY_JQ is set, use that, otherwise use default bundled jq
+if [ -n "$ENVY_JQ" ]; then
+  JQ=$ENVY_JQ
+else
+  JQ="$ENVY_DIR/bin/jq"
+fi
+
+# If ENVY_YQ is set, use that, otherwise use default bundled yq
+if [ -n "$ENVY_YQ" ]; then
+  YQ=$ENVY_YQ
+else
+  YQ="$ENVY_DIR/bin/yq"
+fi
+
+# If ENVY_FILE is set, use that, otherwise use default file name
+if [ -z "$ENVY_FILE" ]; then
+  ENVY_FILE="envy.yaml"
+fi
+
+# If ENVY_YAML is set, use that, otherwise use default full path to envy yaml file
+if [ -z "$ENVY_YAML" ]; then
+  ENVY_YAML="$ENVY_DIR/$ENVY_FILE"
+fi
+
+# If ENVY_TEMP_DIR is set, use that, otherwise use default full path to temp directory
+if [ -z "$ENVY_TEMP_DIR" ]; then
+  ENVY_TEMP_DIR="$ENVY_DIR/tmp"
+fi
+
+# If ENVY_BACKUP_DIR is set, use that, otherwise use default full path to backup directory
+if [ -z "$ENVY_BACKUP_DIR" ]; then
+  ENVY_BACKUP_DIR="$ENVY_DIR/backup"
+fi
+
+# echo "JQ=$JQ"
+# echo "YQ=$YQ"
+# echo "ENVY_DIR=$ENVY_DIR"
+# echo "ENVY_YAML=$ENVY_YAML"
+# echo "ENVY_TEMP_DIR=$ENVY_TEMP_DIR"
+
+# If ENVY_YAML doesn't exist, create it with valid empty content
+if [ ! -f "$ENVY_YAML" ]; then
+  mkdir -p "$ENVY_DIR"
+  emptyYaml=$($YQ --null-input '{"names": []}')
+  echo "$emptyYaml" >"$ENVY_YAML"
+  echo "Created $ENVY_YAML"
+fi
+
+extract_env() {
+  local text=$1
+
+  key=$(echo "$text" | pcregrep -io1 '^(?:export\s)?([\w]+)=([\w\d\=\+\-\_]+)')
+  value=$(echo "$text" | pcregrep -io2 '^(?:export\s)?([\w]+)=([\w\d\=\+\-\_]+)')
+
+  if [[ -n $key ]] && [[ -n $value ]]; then
+    echo "{ \"key\": \"$key\", \"value\": \"$value\" }" | $JQ -c '.'
+  else
+    echo null
+  fi
+}
+
+# Helper function for getting the current date and time on ISO-8601 format.
+iso8601datetime() {
+  date +"%Y-%m-%dT%H:%M:%S%z"
+}
+
+# Helper function for reading the Envy yaml file by a dot-separated path. Writes the output to $env_vars.
+read_env_vars() {
+  local envName=$1
+
+  # Part of the below YQ crazyness is explained here: https://github.com/mikefarah/yq/issues/922
+  # Read ireduce docs here: https://mikefarah.gitbook.io/yq/operators/reduce
+  # Read explode docs here: https://mikefarah.gitbook.io/yq/operators/anchor-and-alias-operators#explode-alias-and-anchor
+  # ---
+  # Example yaml:
+  # my:
+  #   cool:
+  #     thing:
+  #       FOO: 123
+  #       BAR 456
+  # ---
+  # 1. Set $envName as environment variable NAME that yq can use
+  # 2. Split NAME by dots (ex: my.cool.thing -> [my, cool, thing])
+  # 3. ireduce will basically map/transform each key into a map/object where the property names are the environment variable name and the value is the environment variable's value: { FOO: 123, BAR: 456 }
+  # 4. explode(.) will resolve aliases/references.
+  # 5. to_entries will take an object such as { FOO: 123 } and turn it into a list of objects with a key and value property such as [{ key: FOO, value: 123 }]. This makes it easier to refer to the key and value in further yq/jq queries.
+  env_vars=$(cat "$ENVY_YAML" | NAME=$envName $YQ --prettyPrint -o=json '(strenv(NAME) | split(".") | .[]) as $i ireduce (. ; .[$i]) | explode(.) | to_entries')
+}
+
+# Add the given key and value as an environment variable at the given path in the Envy yaml file.
+add() {
+  if [ -z "$2" ]; then echo "No yaml field path provided" && print_help; fi
+  local path=$2
+
+  if [ -z "$3" ]; then echo "No key provided" && print_help; fi
+  local key=$3
+
+  if [ -z "$4" ]; then echo "No value provided" && print_help; fi
+  local value=$4
+
+  # Add $path to the list of names
+  updatedNames=$(cat "$ENVY_YAML" | newName="$path" $YQ '.names += env(newName)')
+
+  # Ensure the list of names has no duplicates
+  distinctNames=$(echo "$updatedNames" | $YQ '.names | unique')
+
+  # Add the new field at the correct path, (prevent yq from inserting !!merge https://stackoverflow.com/a/71916131) and update `names` to be the newly updated list of names.
+  # 1. Set the three environment variables namesList, pathEnv and valueEnv so we can refer to those in the yq query.
+  # 2. eval(strenv(pathEnv)) += env(valueEnv): Add the key and value at the given path/depth in the yaml file.
+  # 3. (... | select(tag == "!!merge")) tag = "": Explained in the SO answer https://stackoverflow.com/a/71916131. Ensure that !!merge is not inserted by yq.
+  # 4. .names |= env(namesList): Add the list of names to the names array in the yaml file.
+  yamlWithKeyValue=$(namesList="$distinctNames" pathEnv=".$path" valueEnv="$key: $value" $YQ --prettyPrint 'eval(strenv(pathEnv)) += env(valueEnv) | (... | select(tag == "!!merge")) tag = "" | .names |= env(namesList)' $ENVY_YAML)
+
+  # Save the result as the new envy yaml
+  echo "$yamlWithKeyValue" >"$ENVY_YAML"
+
+  echo "Added $key=$value to $path"
+}
+
+# Export each environment variable in the given environment. Remember to source the command: `source envy export <env>`.
+export_env() {
+  if [ -z "$2" ]; then echo "No <env> provided" && print_help; fi
+  local envName=$2
+
+  read_env_vars "$envName"
+
+  echo "$env_vars" | $JQ -c '.[]' | while read -r i; do
+    key=$(echo "$i" | $JQ -r '.key')
+    value=$(echo "$i" | $JQ -r '.value')
+    export "$key=$value"
+  done
+
+  echo "$envName environment variables exported"
+}
+
+# Call unset on each environment variable in the given environment. Remember to source the command: `source envy unexport <env>`.
+unexport_env() {
+  if [ -z "$2" ]; then echo "No <env> provided" && print_help; fi
+  local envName=$2
+
+  read_env_vars "$envName"
+
+  echo "$env_vars" | $JQ -c '.[]' | while read -r i; do
+    key=$(echo "$i" | $JQ -r '.key')
+    unset "$key"
+  done
+
+  echo "$envName environment variables unset"
+}
+
+# Print all environment variables for a given environment name. It won't apply/export them, just print them for inspection.
+show() {
+  if [ -z "$2" ]; then echo "No <env> provided" && print_help; fi
+  local envName=$2
+
+  read_env_vars "$envName"
+
+  echo "$env_vars" | $JQ -c '.[]' | while read -r i; do
+    key=$(echo "$i" | $JQ -r '.key')
+    value=$(echo "$i" | $JQ -r '.value')
+    echo "$key: $value"
+  done
+}
+
+# Print all the environment names that can then be used with other commands such as `envy show <env name>` or `envy export <env name>`.
+list() {
+  cat "$ENVY_YAML" | $YQ --prettyPrint '.names'
+}
+
+# Prints the entire Envy yaml file as-is
+yaml() {
+  if [[ "$1" = "--raw" ]]; then
+    # If --raw is provided, just print yaml as stored on disk (don't resolve references/aliases)
+    cat "$ENVY_YAML"
+  else
+    # explode(.) will resolve references/aliases in the yaml content.
+    # Read explode docs here: https://mikefarah.gitbook.io/yq/operators/anchor-and-alias-operators#explode-alias-and-anchor
+    cat "$ENVY_YAML" | $YQ --prettyPrint '. | explode(.)'
+  fi
+}
+
+# Verifies that each environment variable key found in Envy for the given env is set in the current shell and that the
+# shell's values matches the ones registered in Envy.
+verify() {
+  if [ -z "$2" ]; then echo "No <env> provided" && print_help; fi
+  local envName=$2
+
+  local RED
+  local GREEN
+  local NC
+  RED=$(tput setaf 1)
+  GREEN=$(tput setaf 2)
+  NC=$(tput sgr0)
+
+  read_env_vars "$envName"
+
+  echo "$env_vars" | $JQ -c '.[]' | while read -r i; do
+    envyKey=$(echo "$i" | $JQ -r '.key')
+    envyValue=$(echo "$i" | $JQ -r '.value')
+
+    # Lookup the given key found in Envy with the current shell environment
+    shellEnvVar=$(env | grep "$envyKey")
+
+    # Check if we got any output at all
+    if [ -z "$shellEnvVar" ]; then
+      # This environment variable is not currently set in the shell
+      printf "${RED}MISSING:%-1s$envyKey is not an active environment variable${NC}\n"
+    else
+      # Use sed to strip away everything except the environment variable's value
+      shellValue=$(echo "$shellEnvVar" | sed "s/$envyKey=//g")
+
+      # Check if the environment variable's value in the shell matches the value we have in Envy
+      if [ "$shellValue" = "$envyValue" ]; then
+        printf "${GREEN}OK:%-6s$envyKey matches Envy value $envyValue ${NC}\n"
+      else
+        printf "${RED}DIFF:%-4s$envyKey value $shellValue differs from Envy value $envyValue ${NC}\n"
+      fi
+    fi
+
+  done
+}
+
+# Export all environment variables for $envName as a .env file at the given $outFilePath.
+export_to_dotenv() {
+  if [ -z "$2" ]; then echo "No <env> provided" && print_help; fi
+  local envName=$2
+
+  if [ -z "$3" ]; then echo "No out file path provided" && print_help; fi
+  local outFilePath=$3
+
+  mkdir -p "$(dirname "$outFilePath")"
+
+  read_env_vars "$envName"
+
+  echo "$env_vars" | $JQ -c '.[]' | while read -r i; do
+    key=$(echo "$i" | $JQ -r '.key')
+    value=$(echo "$i" | $JQ -r '.value')
+    echo "$key=$value" >>"$outFilePath"
+  done
+}
+
+# Export all environment variables for $envName as a bash script at the given $outFilePath.
+# Will also include the shebang line and make the file executable.
+export_to_bash() {
+  if [ -z "$2" ]; then echo "No <env> provided" && print_help; fi
+  local envName=$2
+
+  if [ -z "$3" ]; then echo "No out file path provided" && print_help; fi
+  local outFilePath=$3
+
+  mkdir -p "$(dirname "$outFilePath")"
+  echo "#!/bin/bash" >>"$outFilePath"
+  chmod +x "$outFilePath"
+
+  read_env_vars "$envName"
+
+  echo "$env_vars" | $JQ -c '.[]' | while read -r i; do
+    key=$(echo "$i" | $JQ -r '.key')
+    value=$(echo "$i" | $JQ -r '.value')
+    echo "export $key=$value" >>"$outFilePath"
+  done
+}
+
+# Import all environment variables in the .env file given as $filePath and save them in the Envy yaml file under $path.
+import_from_dotenv() {
+  if [ -z "$2" ]; then echo "No input file path provided" && print_help; fi
+  local filePath=$2
+
+  if [ -z "$3" ]; then echo "No environment key provided" && print_help; fi
+  local path=$3
+
+  # We need a temporary folder to create files in
+  mkdir -p "$ENVY_TEMP_DIR"
+
+  # Keep a count of the while loop iterations
+  local count=1
+
+  # Read content from $filePath and split by "=" to get each environment variable name and it's value
+  # shellcheck disable=SC2128
+  while IFS="=" read -r -a kvp || [ -n "$kvp" ]; do
+    key=${kvp[0]}
+    value=${kvp[1]}
+
+    # TODO: Handle comments and empty or misformatted lines
+    # if [[ $key == *"#"* ]] || [[ $value == *"#"* ]]
+    # then
+    #   echo "key $key or value $value contains #"
+    # fi
+
+    # ^(?:export\s)?([\w]+)=([\w\d\=\+\-\_]+)
+
+    # Add "key: value" under $path. Example:
+    # If $path is "my.cool.env", $key is "foo", and $value is "bar", it will produce:
+    #
+    # (...rest of yaml file)
+    # my:
+    #  cool:
+    #    env:
+    #      foo: bar
+    #
+    # It will also add "my.cool.env" to the 'names' array in the yaml file.
+
+    yamlWithKeyValue=$(newName="$path" pathEnv=".$path" valueEnv="$key: $value" $YQ --prettyPrint 'eval(strenv(pathEnv)) = env(valueEnv) | (... | select(tag == "!!merge")) tag = "" | .names += env(newName)' "$ENVY_YAML")
+
+    # Because we're only adding 1 key-value pair at a time, we need to save each yaml file variation in seperate files
+    # and then merge all the files together to get the final yaml with all key-value pairs.
+    # This saves the current "$key: $value" diff to a temporary file:
+    echo "$yamlWithKeyValue" >"$ENVY_TEMP_DIR/kvp_$count.yaml"
+
+    # Increment count by 1 (count++)
+    count=$(($count + 1))
+  done <"$filePath"
+
+  # Merge all the temporary yaml files in the tmp dir together into a final yaml.
+  # shellcheck disable=SC2016
+  mergedYaml=$($YQ eval-all '. as $item ireduce ({}; . * $item )' "$ENVY_TEMP_DIR"/*.yaml)
+
+  # Clean up temporary folder.
+  rm -rf "${ENVY_TEMP_DIR:?}/"
+
+  # Take a backup of the envy yaml file before we update it, until this feature is more battle-tested.
+  mkdir -p "$ENVY_BACKUP_DIR"
+  cp "$ENVY_YAML" "$ENVY_BACKUP_DIR/$ENVY_FILE.backup.$(iso8601datetime)"
+
+  # Save the final yaml file, containing all key-value pairs under $path.
+  echo "$mergedYaml" >"$ENVY_YAML"
+}
+
+# Import all environment variables in the .sh file given as $filePath and save them in the Envy yaml file under $path.
+import_from_bash() {
+  if [ -z "$2" ]; then echo "No input file path provided" && print_help; fi
+  local filePath=$2
+
+  if [ -z "$3" ]; then echo "No environment key provided" && print_help; fi
+  local path=$3
+
+  # We need a temporary folder to create files in
+  mkdir -p "$ENVY_TEMP_DIR"
+
+  # Keep a count of the while loop iterations
+  local count=1
+
+  # Read content from $filePath and split by "=" to get each environment variable name and it's value
+  # shellcheck disable=SC2128
+  while IFS="=" read -r -a kvp || [ -n "$kvp" ]; do
+    keyWithExport=${kvp[0]}
+    value=${kvp[1]}
+
+    # TODO: Handle comments and empty or misformatted lines. Also handle non-export lines.
+
+    # If key or value is empty, skip this line
+    if [ -z "$keyWithExport" ] || [ -z "$value" ]; then
+      continue
+    fi
+
+    # Remove 'export ' from lines like 'export FOO=bar123'.
+    # Since we've already split $filePath by '=', $keyWithExport is really only 'export FOO' and we're removing "export " and are left with just "FOO".
+    key=$(echo "$keyWithExport" | sed 's/export //g')
+
+    # Add $path to the list of names
+    updatedNames=$(cat "$ENVY_YAML" | newName="$path" $YQ '.names += env(newName)')
+
+    # Ensure the list of names has no duplicates
+    distinctNames=$(echo "$updatedNames" | $YQ '.names | unique')
+
+    # Add "key: value" under $path. Example:
+    # If $path is "my.cool.env", $key is "foo", and $value is "bar", it will produce:
+    #
+    # (...rest of yaml file)
+    # my:
+    #  cool:
+    #    env:
+    #      foo: bar
+    #
+    # It will also add "my.cool.env" to the 'names' array in the yaml file.
+
+    yamlWithKeyValue=$(namesList="$distinctNames" pathEnv=".$path" valueEnv="$key: $value" $YQ --prettyPrint 'eval(strenv(pathEnv)) = env(valueEnv) | (... | select(tag == "!!merge")) tag = "" | .names |= env(namesList)' "$ENVY_YAML")
+
+    # Because we're only adding 1 key-value pair at a time, we need to save each yaml file variation in seperate files
+    # and then merge all the files together to get the final yaml with all key-value pairs.
+    # This saves the current "$key: $value" diff to a temporary file:
+    echo "$yamlWithKeyValue" >"$ENVY_TEMP_DIR/kvp_$count.yaml"
+
+    # Increment count by 1 (count++)
+    count=$(($count + 1))
+  done <"$filePath"
+
+  # Merge all the temporary yaml files in the tmp dir together into a final yaml.
+  # shellcheck disable=SC2016
+  mergedYaml=$($YQ eval-all '. as $item ireduce ({}; . * $item )' "$ENVY_TEMP_DIR"/*.yaml)
+
+  # Clean up temporary folder.
+  rm -rf "${ENVY_TEMP_DIR:?}/"
+
+  # Take a backup of the envy yaml file before we update it, until this feature is more battle-tested.
+  mkdir -p "$ENVY_BACKUP_DIR"
+  cp "$ENVY_YAML" "$ENVY_BACKUP_DIR/$ENVY_FILE.backup.$(iso8601datetime)"
+
+  # Save the final yaml file, containing all key-value pairs under $path.
+  echo "$mergedYaml" >"$ENVY_YAML"
+}
+
+case $1 in
+"help")
+  print_help
+  exit 0
+  ;;
+"set")
+  add "$@"
+  ;;
+"ls" | "list")
+  list "$@"
+  ;;
+"export")
+  export_env "$@"
+  ;;
+"unexport")
+  unexport_env "$@"
+  ;;
+"show")
+  show "$@"
+  ;;
+"yaml")
+  yaml "$@"
+  ;;
+"verify")
+  verify "$@"
+  ;;
+"export-dotenv")
+  export_to_dotenv "$@"
+  ;;
+"export-bash")
+  export_to_bash "$@"
+  ;;
+"import-dotenv")
+  import_from_dotenv "$@"
+  ;;
+"import-bash")
+  import_from_bash "$@"
+  ;;
+"noop")
+  # Use this if you need to source the envy script without invoking a command, such as when unit testing.
+  ;;
+*)
+  echo "Unknown command '$1'"
+  print_help
+  exit 1
+  ;;
+esac

@@ -1,0 +1,11 @@
+names:
+  - first.section
+  - second.section.group
+first:
+  section:
+    MY_ENV: foo
+    OTHER_ENV: bar
+second:
+  section:
+    group:
+      GROUP_ENV: aaa
