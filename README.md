@@ -6,6 +6,16 @@ Environment variables management script.
 
 Uses a yaml file to store groups of environment variables. The script acts as a CLI for interacting with the yaml file.
 
+### How to get started
+
+1. Put the `envy` bash script in this repo in a directory that's included in your PATH.
+2. Add `export ENVY_DIR=your/path/to/envy/dir` to your .bashrc, .zshrc or similar.
+3. Either put the `bin` directory with `jq` and `yq` in this repo as a sub-directory to wherever you placed the `envy` script, or set `ENVY_JQ` and `ENVY_YQ` to your own versions of those programs. See [configuration options](#configuration-options) below.
+
+Then start using it by running one of the commands listed below.
+
+See [How to use](#how-to-use) for more info.
+
 ### Commands
 
 | Command                                       | Description                                                                                                                                                     |
@@ -38,7 +48,7 @@ Set these environment variables to override defaults.
 
 ## How to use
 
-If `envy.yaml` doesn't exist, running any command or just invoking the `envy` script will create an empty yaml file. If you want to create it manually, it needs this at the very minimum:
+If `envy.yaml` (the yaml file where all your environment variables are stored) doesn't exist, running any command or just invoking the `envy` script will create an empty yaml file. If you want to create it manually, it needs this at the very minimum:
 
 ```yaml
 names:
