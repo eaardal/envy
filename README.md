@@ -38,7 +38,7 @@ Set these environment variables to override defaults.
 
 | Variable          | Description                                                                 | Defaults to            |
 | ----------------- | --------------------------------------------------------------------------- | ---------------------- |
-| `ENVY_DIR`        | Path to the directory where the `envy.yaml` (or `$ENVY_FILE`) is located    | `envy.yaml`            |
+| `ENVY_DIR`        | Path to the directory where the `envy.yaml` (or `$ENVY_FILE`) is located    | [Required]             |
 | `ENVY_JQ`         | Path to the `jq` executable to use.                                         | `$ENVY_DIR/bin/jq`     |
 | `ENVY_YQ`         | Path to the `yq` executable to use.                                         | `$ENVY_DIR/bin/yq`     |
 | `ENVY_FILE`       | Name of the yaml file containing environment variables                      | `envy.yaml`            |
