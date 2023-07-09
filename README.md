@@ -20,19 +20,19 @@ See [How to use](#how-to-use) for more info.
 
 ### Commands
 
-| Command                                       | Description                                                                                                                                                     |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `source envy export <env>`                    | Export the given environment variables. Remember to source the statement for the changes to stick.                                                              |
-| `source envy unexport <env>`                  | Unset the given environment variables. Remember to source the statement for the changes to stick.                                                               |
-| `envy ls` or `envy list`                      | List available environments names. These can be used in commands with <env> as a parameter.                                                                     |
-| `envy show <env>`                             | Print environment variables in the given environment (won't set them).                                                                                          |
-| `envy set <env> <key> <value>`                | Set the environment value key and value at the given path in the yaml. Path can be dot-separated.                                                               |
-| `envy yaml` or `envy yaml --raw`              | Print the entire Envy yaml file containing all environment variables.                                                                                           |
-| `envy verify <env>`                           | Verifies that each environment variable key found in Envy for the given <env> is set in the current shell and that the shell's values matches the ones in Envy. |
-| `envy export-dotenv <env> <out-file-path>`    | Export environment variables to the given file path in a dotenv (.env) format: `key=value`.                                                                     |
-| `envy export-bash <env> <out-file-path>`      | Export environment variables to the given file path in a bash (.sh) format: `export key=value`.                                                                 |
-| `envy import-dotenv <dotenv-file-path> <env>` | Import a .env file and save all environment variables into envy.yaml.                                                                                           |
-| `envy import-bash`                            | Import a .sh file with `export key=value` lines and save all environemnt variables into envy.yaml.                                                              |
+| Command                                       | Description                                                                                                                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `source envy export <env>`                    | Export the given environment variables. Remember to source the statement for the changes to stick.                                                                       |
+| `source envy unexport <env>`                  | Unset the given environment variables. Remember to source the statement for the changes to stick.                                                                        |
+| `envy ls` or `envy list`                      | List available environments names. These can be used in commands with <env> as a parameter.                                                                              |
+| `envy show <env> [<key>]`                     | Print environment variables in the given environment (won't set them). Specify the optional <key> argument to only print the value of one specific environment variable. |
+| `envy set <env> <key> <value>`                | Set the environment value key and value at the given path in the yaml. Path can be dot-separated.                                                                        |
+| `envy yaml` or `envy yaml --raw`              | Print the entire Envy yaml file containing all environment variables.                                                                                                    |
+| `envy verify <env>`                           | Verifies that each environment variable key found in Envy for the given <env> is set in the current shell and that the shell's values matches the ones in Envy.          |
+| `envy export-dotenv <env> <out-file-path>`    | Export environment variables to the given file path in a dotenv (.env) format: `key=value`.                                                                              |
+| `envy export-bash <env> <out-file-path>`      | Export environment variables to the given file path in a bash (.sh) format: `export key=value`.                                                                          |
+| `envy import-dotenv <dotenv-file-path> <env>` | Import a .env file and save all environment variables into envy.yaml.                                                                                                    |
+| `envy import-bash`                            | Import a .sh file with `export key=value` lines and save all environemnt variables into envy.yaml.                                                                       |
 
 ## Configuration options
 

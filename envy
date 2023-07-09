@@ -7,7 +7,7 @@ print_help() {
   echo -e "source envy export <env> - Export the given environment variables. Remember to source the statement for the changes to stick to the session."
   echo -e "source envy unexport <env> - Unset the given environment variables. Remember to source the statement for the changes to stick to the session."
   echo -e "envy ls|list - List available environments names. These can be used in commands with <env> as a parameter."
-  echo -e "envy show <env> - Print environment variables in the given environment (won't set them)."
+  echo -e "envy show <env> [<key>] - Print environment variables in the given environment (won't set them). Specify the optional <key> argument to only print the value of one specific environment variable."
   echo -e "envy set <env> <key> <value> - Set the environment value key and value at the given path in the yaml. Path can be dot-separated."
   echo -e "envy yaml - Print the entire Envy yaml file containing all environment variables."
   echo -e "envy verify <env> - Verifies that each environment variable key found in Envy for the given <env> is set in the current shell and that the shell's values matches the ones in Envy."
@@ -70,11 +70,27 @@ if [ -z "$ENVY_BACKUP_DIR" ]; then
   ENVY_BACKUP_DIR="$ENVY_DIR/backup"
 fi
 
-# echo "JQ=$JQ"
-# echo "YQ=$YQ"
-# echo "ENVY_DIR=$ENVY_DIR"
-# echo "ENVY_YAML=$ENVY_YAML"
-# echo "ENVY_TEMP_DIR=$ENVY_TEMP_DIR"
+if [ "$DEBUG" == "true" ]; then
+  echo "Environment:"
+  echo "------"
+  echo "ENVY_DIR=$ENVY_DIR"
+  echo "ENVY_FILE=$ENVY_FILE"
+  echo "ENVY_YAML=$ENVY_YAML"
+  echo "ENVY_TEMP_DIR=$ENVY_TEMP_DIR"
+  echo "ENVY_BACKUP_DIR=$ENVY_BACKUP_DIR"
+  echo "ENVY_JQ=$ENVY_JQ"
+  echo "ENVY_YQ=$ENVY_YQ"
+  echo "JQ=$JQ"
+  echo "YQ=$YQ"
+  echo "Args: $*"
+  echo "Arg 0: $0"
+  echo "Arg 1: $1"
+  echo "Arg 2: $2"
+  echo "Arg 3: $3"
+  echo "Arg 4: $4"
+  echo "------"
+  echo ""
+fi
 
 # If ENVY_YAML doesn't exist, create it with valid empty content
 if [ ! -f "$ENVY_YAML" ]; then
@@ -192,12 +208,43 @@ show() {
   if [ -z "$2" ]; then echo "No <env> provided" && print_help && exit 1; fi
   local envName=$2
 
+  # Optional: Specific environvment variable key to print the value of.
+  #
+  # Given this yaml:
+  #
+  # some:
+  #   envs:
+  #     FOO: bar
+  #     BAR: foo
+  #
+  # The command `envy show some.envs` prints:
+  #
+  # FOO: bar
+  # BAR: foo
+  #
+  # envName will be: some.envs
+  # envKey will be empty
+  #
+  # The command `envy show some.envs FOO` prints: bar
+  # envName will be: some.envs
+  # envKey will be: FOO
+  local envKey=$3
+
   read_env_vars "$envName"
 
   echo "$env_vars" | $JQ -c '.[]' | while read -r i; do
     key=$(echo "$i" | $JQ -r '.key')
     value=$(echo "$i" | $JQ -r '.value')
-    echo "$key: $value"
+
+    # If envKey is set and matches the $key, print its value.
+    if [[ -n "$envKey" ]] && [[ "$key" == "$envKey" ]]; then
+      echo "$value"
+    fi
+
+    # If envKey is not set, print all keys and values.
+    if [[ -z "$envKey" ]]; then
+      echo "$key: $value"
+    fi
   done
 }
 
