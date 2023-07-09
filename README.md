@@ -10,7 +10,9 @@ Uses a yaml file to store groups of environment variables. The script acts as a 
 
 1. Put the `envy` bash script in this repo in a directory that's included in your PATH.
 2. Add `export ENVY_DIR=your/path/to/envy/dir` to your .bashrc, .zshrc or similar.
-3. Either put the `bin` directory with `jq` and `yq` in this repo as a sub-directory to wherever you placed the `envy` script, or set `ENVY_JQ` and `ENVY_YQ` to your own versions of those programs. See [configuration options](#configuration-options) below.
+3. Either put the `bin` directory with `jq` and `yq` in this repo as a sub-directory to wherever you placed the `envy` script, or set `ENVY_JQ` and `ENVY_YQ` to your own versions of those programs.
+
+See [Configuration options](#configuration-options) for further (optional) setup.
 
 Then start using it by running one of the commands listed below.
 
@@ -36,15 +38,15 @@ See [How to use](#how-to-use) for more info.
 
 Set these environment variables to override defaults.
 
-| Variable          | Description                                                                 | Defaults to            |
-| ----------------- | --------------------------------------------------------------------------- | ---------------------- |
-| `ENVY_DIR`        | Path to the directory where the `envy.yaml` (or `$ENVY_FILE`) is located    | [Required]             |
-| `ENVY_JQ`         | Path to the `jq` executable to use.                                         | `$ENVY_DIR/bin/jq`     |
-| `ENVY_YQ`         | Path to the `yq` executable to use.                                         | `$ENVY_DIR/bin/yq`     |
-| `ENVY_FILE`       | Name of the yaml file containing environment variables                      | `envy.yaml`            |
-| `ENVY_YAML`       | Full path to the yaml file containing environment variables                 | `$ENVY_DIR/$ENVY_FILE` |
-| `ENVY_TEMP_DIR`   | Path to the temp dir where temporary files will be stored for some commands | `$ENVY_DIR/tmp`        |
-| `ENVY_BACKUP_DIR` | Path to the backup dir where old versions of `envy.yaml` will be stored     | `$ENVY_DIR/backup`     |
+| Variable          | Description                                                                 | Defaults to                                                      |
+| ----------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `ENVY_DIR`        | Path to the directory where the `envy.yaml` (or `$ENVY_FILE`) is located    | [Required] You must set this in your .zshrc, .bashrc or similar. |
+| `ENVY_JQ`         | Path to the `jq` executable to use.                                         | `$ENVY_DIR/bin/jq`                                               |
+| `ENVY_YQ`         | Path to the `yq` executable to use.                                         | `$ENVY_DIR/bin/yq`                                               |
+| `ENVY_FILE`       | Name of the yaml file containing environment variables                      | `envy.yaml`                                                      |
+| `ENVY_YAML`       | Full path to the yaml file containing environment variables                 | `$ENVY_DIR/$ENVY_FILE`                                           |
+| `ENVY_TEMP_DIR`   | Path to the temp dir where temporary files will be stored for some commands | `$ENVY_DIR/tmp`                                                  |
+| `ENVY_BACKUP_DIR` | Path to the backup dir where old versions of `envy.yaml` will be stored     | `$ENVY_DIR/backup`                                               |
 
 ## How to use
 

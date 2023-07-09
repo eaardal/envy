@@ -54,6 +54,12 @@ if [ -z "$ENVY_YAML" ]; then
   ENVY_YAML="$ENVY_DIR/$ENVY_FILE"
 fi
 
+if [ ! -f "$ENVY_YAML" ]; then
+  echo "No file was found at $ENVY_YAML. Ensure that ENVY_DIR and/or ENVY_FILE are pointing to a yaml file on disk"
+  print_help
+  exit 1
+fi
+
 # If ENVY_TEMP_DIR is set, use that, otherwise use default full path to temp directory
 if [ -z "$ENVY_TEMP_DIR" ]; then
   ENVY_TEMP_DIR="$ENVY_DIR/tmp"
@@ -116,18 +122,19 @@ read_env_vars() {
   # 3. ireduce will basically map/transform each key into a map/object where the property names are the environment variable name and the value is the environment variable's value: { FOO: 123, BAR: 456 }
   # 4. explode(.) will resolve aliases/references.
   # 5. to_entries will take an object such as { FOO: 123 } and turn it into a list of objects with a key and value property such as [{ key: FOO, value: 123 }]. This makes it easier to refer to the key and value in further yq/jq queries.
+  # shellcheck disable=SC2016 disable=SC2002
   env_vars=$(cat "$ENVY_YAML" | NAME=$envName $YQ --prettyPrint -o=json '(strenv(NAME) | split(".") | .[]) as $i ireduce (. ; .[$i]) | explode(.) | to_entries')
 }
 
 # Add the given key and value as an environment variable at the given path in the Envy yaml file.
 add() {
-  if [ -z "$2" ]; then echo "No yaml field path provided" && print_help; fi
+  if [ -z "$2" ]; then echo "No yaml field path provided" && print_help && exit 1; fi
   local path=$2
 
-  if [ -z "$3" ]; then echo "No key provided" && print_help; fi
+  if [ -z "$3" ]; then echo "No key provided" && print_help && exit 1; fi
   local key=$3
 
-  if [ -z "$4" ]; then echo "No value provided" && print_help; fi
+  if [ -z "$4" ]; then echo "No value provided" && print_help && exit 1; fi
   local value=$4
 
   # Add $path to the list of names
@@ -151,7 +158,7 @@ add() {
 
 # Export each environment variable in the given environment. Remember to source the command: `source envy export <env>`.
 export_env() {
-  if [ -z "$2" ]; then echo "No <env> provided" && print_help; fi
+  if [ -z "$2" ]; then echo "No <env> provided" && print_help && exit 1; fi
   local envName=$2
 
   read_env_vars "$envName"
@@ -167,7 +174,7 @@ export_env() {
 
 # Call unset on each environment variable in the given environment. Remember to source the command: `source envy unexport <env>`.
 unexport_env() {
-  if [ -z "$2" ]; then echo "No <env> provided" && print_help; fi
+  if [ -z "$2" ]; then echo "No <env> provided" && print_help && exit 1; fi
   local envName=$2
 
   read_env_vars "$envName"
@@ -182,7 +189,7 @@ unexport_env() {
 
 # Print all environment variables for a given environment name. It won't apply/export them, just print them for inspection.
 show() {
-  if [ -z "$2" ]; then echo "No <env> provided" && print_help; fi
+  if [ -z "$2" ]; then echo "No <env> provided" && print_help && exit 1; fi
   local envName=$2
 
   read_env_vars "$envName"
@@ -214,7 +221,7 @@ yaml() {
 # Verifies that each environment variable key found in Envy for the given env is set in the current shell and that the
 # shell's values matches the ones registered in Envy.
 verify() {
-  if [ -z "$2" ]; then echo "No <env> provided" && print_help; fi
+  if [ -z "$2" ]; then echo "No <env> provided" && print_help && exit 1; fi
   local envName=$2
 
   local RED
@@ -254,10 +261,10 @@ verify() {
 
 # Export all environment variables for $envName as a .env file at the given $outFilePath.
 export_to_dotenv() {
-  if [ -z "$2" ]; then echo "No <env> provided" && print_help; fi
+  if [ -z "$2" ]; then echo "No <env> provided" && print_help && exit 1; fi
   local envName=$2
 
-  if [ -z "$3" ]; then echo "No out file path provided" && print_help; fi
+  if [ -z "$3" ]; then echo "No out file path provided" && print_help && exit 1; fi
   local outFilePath=$3
 
   mkdir -p "$(dirname "$outFilePath")"
@@ -274,10 +281,10 @@ export_to_dotenv() {
 # Export all environment variables for $envName as a bash script at the given $outFilePath.
 # Will also include the shebang line and make the file executable.
 export_to_bash() {
-  if [ -z "$2" ]; then echo "No <env> provided" && print_help; fi
+  if [ -z "$2" ]; then echo "No <env> provided" && print_help && exit 1; fi
   local envName=$2
 
-  if [ -z "$3" ]; then echo "No out file path provided" && print_help; fi
+  if [ -z "$3" ]; then echo "No out file path provided" && print_help && exit 1; fi
   local outFilePath=$3
 
   mkdir -p "$(dirname "$outFilePath")"
@@ -295,10 +302,10 @@ export_to_bash() {
 
 # Import all environment variables in the .env file given as $filePath and save them in the Envy yaml file under $path.
 import_from_dotenv() {
-  if [ -z "$2" ]; then echo "No input file path provided" && print_help; fi
+  if [ -z "$2" ]; then echo "No input file path provided" && print_help && exit 1; fi
   local filePath=$2
 
-  if [ -z "$3" ]; then echo "No environment key provided" && print_help; fi
+  if [ -z "$3" ]; then echo "No environment key provided" && print_help && exit 1; fi
   local path=$3
 
   # We need a temporary folder to create files in
@@ -360,10 +367,10 @@ import_from_dotenv() {
 
 # Import all environment variables in the .sh file given as $filePath and save them in the Envy yaml file under $path.
 import_from_bash() {
-  if [ -z "$2" ]; then echo "No input file path provided" && print_help; fi
+  if [ -z "$2" ]; then echo "No input file path provided" && print_help && exit 1; fi
   local filePath=$2
 
-  if [ -z "$3" ]; then echo "No environment key provided" && print_help; fi
+  if [ -z "$3" ]; then echo "No environment key provided" && print_help && exit 1; fi
   local path=$3
 
   # We need a temporary folder to create files in
