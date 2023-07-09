@@ -55,7 +55,7 @@ if [ -z "$ENVY_YAML" ]; then
 fi
 
 if [ ! -f "$ENVY_YAML" ]; then
-  echo "No file was found at $ENVY_YAML. Ensure that ENVY_DIR and/or ENVY_FILE are pointing to a yaml file on disk"
+  echo "No file was found at $ENVY_YAML. Ensure that ENVY_YAML, ENVY_DIR and/or ENVY_FILE are pointing to a yaml file on disk. ENVY_YAML overrides ENVY_DIR+ENVY_FILE if it is set, otherwise we're looking for the file ENVY_DIR/ENVY_FILE."
   print_help
   exit 1
 fi

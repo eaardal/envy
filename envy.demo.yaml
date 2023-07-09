@@ -1,0 +1,20 @@
+names:
+  - projects.myapp.dev
+  - projects.myapp.test
+  - projects.myapp.prod
+projects:
+  myapp:
+    defaults: &myapp-defaults
+      HOST_NAME: &myapp-host http://foo.com
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+    dev:
+      <<: *myapp-defaults
+    test:
+      <<:
+        - *myapp-defaults
+      LOG_LEVEL: error
+    prod:
+      <<:
+        - *myapp-defaults
+      BASE_URL: *myapp-host
