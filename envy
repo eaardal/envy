@@ -70,27 +70,27 @@ if [ -z "$ENVY_BACKUP_DIR" ]; then
   ENVY_BACKUP_DIR="$ENVY_DIR/backup"
 fi
 
-if [ "$DEBUG" == "true" ]; then
-  echo "Environment:"
-  echo "------"
-  echo "ENVY_DIR=$ENVY_DIR"
-  echo "ENVY_FILE=$ENVY_FILE"
-  echo "ENVY_YAML=$ENVY_YAML"
-  echo "ENVY_TEMP_DIR=$ENVY_TEMP_DIR"
-  echo "ENVY_BACKUP_DIR=$ENVY_BACKUP_DIR"
-  echo "ENVY_JQ=$ENVY_JQ"
-  echo "ENVY_YQ=$ENVY_YQ"
-  echo "JQ=$JQ"
-  echo "YQ=$YQ"
-  echo "Args: $*"
-  echo "Arg 0: $0"
-  echo "Arg 1: $1"
-  echo "Arg 2: $2"
-  echo "Arg 3: $3"
-  echo "Arg 4: $4"
-  echo "------"
-  echo ""
-fi
+# if [ "$DEBUG" == "true" ]; then
+#   echo "Environment:"
+#   echo "------"
+#   echo "ENVY_DIR=$ENVY_DIR"
+#   echo "ENVY_FILE=$ENVY_FILE"
+#   echo "ENVY_YAML=$ENVY_YAML"
+#   echo "ENVY_TEMP_DIR=$ENVY_TEMP_DIR"
+#   echo "ENVY_BACKUP_DIR=$ENVY_BACKUP_DIR"
+#   echo "ENVY_JQ=$ENVY_JQ"
+#   echo "ENVY_YQ=$ENVY_YQ"
+#   echo "JQ=$JQ"
+#   echo "YQ=$YQ"
+#   echo "Args: $*"
+#   echo "Arg 0: $0"
+#   echo "Arg 1: $1"
+#   echo "Arg 2: $2"
+#   echo "Arg 3: $3"
+#   echo "Arg 4: $4"
+#   echo "------"
+#   echo ""
+# fi
 
 # If ENVY_YAML doesn't exist, create it with valid empty content
 if [ ! -f "$ENVY_YAML" ]; then
